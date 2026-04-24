@@ -2726,11 +2726,7 @@ async fn get_block_lane_data_returns_verifiable_bundle() {
 
     // Mergeset size from existing helpers — miner_payload_leaves must line up.
     let acceptance = consensus.get_block_acceptance_data(accepting_block).unwrap();
-    assert_eq!(
-        data.miner_payload_leaves.len(),
-        acceptance.len(),
-        "one miner_payload_leaf per merged block"
-    );
+    assert_eq!(data.miner_payload_leaves.len(), acceptance.len(), "one miner_payload_leaf per merged block");
 
     // Proof must verify against the block's lanes_root, yielding None (absence).
     let test_proof = consensus.seq_commit_lane_proof(accepting_block, lane_key);
