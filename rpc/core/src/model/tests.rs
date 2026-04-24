@@ -1297,7 +1297,12 @@ mod mockery {
 
     impl Mock for GetVirtualChainFromBlockV2Request {
         fn mock() -> Self {
-            GetVirtualChainFromBlockV2Request { start_hash: mock(), data_verbosity_level: None, min_confirmation_count: mock() }
+            GetVirtualChainFromBlockV2Request {
+                start_hash: mock(),
+                data_verbosity_level: None,
+                min_confirmation_count: mock(),
+                lane_key: None,
+            }
         }
     }
 
@@ -1305,7 +1310,7 @@ mod mockery {
 
     impl Mock for RpcChainBlockAcceptedTransactions {
         fn mock() -> Self {
-            RpcChainBlockAcceptedTransactions { chain_block_header: mock(), accepted_transactions: mock() }
+            RpcChainBlockAcceptedTransactions { chain_block_header: mock(), accepted_transactions: mock(), lane_data: None }
         }
     }
 
