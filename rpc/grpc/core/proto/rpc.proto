@@ -1074,9 +1074,22 @@ message RpcOptionalTransaction {
   optional RpcOptionalTransactionVerboseData verboseData = 10;
 }
 
+/// Per-chain-block kip21 settlement ingredients for a specific lane.
+///
+/// Populated by GetVirtualChainFromBlockV2 when the request carries a laneKey.
+message RpcLaneData {
+  /// miner_payload_leaf(merged_block_hash, blue_work, coinbase_payload) for every
+  /// block in this chain block's mergeset (in kaspa's canonical iteration order).
+  repeated string minerPayloadLeaves = 1;
+  /// Serialized OwnedSmtProof (wire format: bitmap[32] || terminal || siblings).
+  bytes laneProof = 2;
+}
+
 message RpcChainBlockAcceptedTransactions {
   RpcOptionalHeader chainBlockHeader = 2;
   repeated RpcOptionalTransaction acceptedTransactions = 3;
+  /// Present only when GetVirtualChainFromBlockV2 was called with a laneKey.
+  optional RpcLaneData laneData = 4;
 }
 
 /// GetVirtualChainFromBlockV2RequestMessage requests the virtual selected
@@ -1086,6 +1099,10 @@ message GetVirtualChainFromBlockV2RequestMessage {
 
   optional RpcDataVerbosityLevel dataVerbosityLevel = 2;
   optional uint64 minConfirmationCount = 3;
+  /// When set, each response entry carries an RpcLaneData bundle (SMT proof +
+  /// miner-payload leaves) sufficient to reconstruct the chain block's kip21
+  /// seq_commit for this lane_key.
+  optional string laneKey = 4;
 }
 
 message GetVirtualChainFromBlockV2ResponseMessage {

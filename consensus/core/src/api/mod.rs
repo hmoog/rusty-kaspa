@@ -78,6 +78,22 @@ pub struct SmtExportMetadata {
     pub active_lanes_count: u64,
 }
 
+/// Per-chain-block kip21 settlement ingredients for a specific lane.
+///
+/// Packages everything a downstream verifier needs to reconstruct a chain block's `seq_commit`
+/// for one lane without direct DB or mergeset-transactions access:
+///
+/// - `miner_payload_leaves`: `miner_payload_leaf(merged_block_hash, blue_work, coinbase_payload)`
+///   for every merged block in the chain block's mergeset, in the order kaspa's
+///   `collect_mergeset_seq_data` iterates.
+/// - `lane_proof`: SMT merkle proof for the requested `lane_key` against this chain block's
+///   post-update `lanes_root`, obtained via [`SmtStores::prove_lane`].
+#[derive(Clone, Debug)]
+pub struct BlockLaneData {
+    pub miner_payload_leaves: Vec<Hash>,
+    pub lane_proof: kaspa_smt::proof::OwnedSmtProof,
+}
+
 /// Abstracts the consensus external API
 #[allow(unused_variables)]
 pub trait ConsensusApi: Send + Sync {
@@ -314,6 +330,16 @@ pub trait ConsensusApi: Send + Sync {
 
     /// Compute SMT metadata for the pruning point (for P2P streaming).
     fn get_pruning_point_smt_metadata(&self, _expected_pruning_point: Hash) -> ConsensusResult<SmtExportMetadata> {
+        unimplemented!()
+    }
+
+    /// Collect the kip21 settlement ingredients for a chain block and a specific lane: the
+    /// miner-payload leaves over the chain block's mergeset, and an SMT merkle proof for
+    /// `lane_key` against the chain block's post-update `lanes_root`.
+    ///
+    /// Used by external settlement provers (e.g. ZK rollups) to derive that block's `seq_commit`
+    /// for their lane without pulling the full mergeset or direct SMT DB access.
+    fn get_block_lane_data(&self, _block_hash: Hash, _lane_key: Hash) -> ConsensusResult<BlockLaneData> {
         unimplemented!()
     }
 

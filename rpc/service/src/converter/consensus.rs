@@ -636,9 +636,13 @@ impl ConsensusConverter {
         verbosity: &RpcAcceptanceDataVerbosity,
         chain_path: &ChainPath,
         merged_blocks_limit: Option<usize>,
+        lane_key: Option<RpcHash>,
     ) -> RpcResult<Vec<RpcChainBlockAcceptedTransactions>> {
-        if verbosity.accepting_chain_header_verbosity.is_none() && verbosity.mergeset_block_acceptance_data_verbosity.is_none() {
-            // specified verbosity doesn't need acceptance data
+        if verbosity.accepting_chain_header_verbosity.is_none()
+            && verbosity.mergeset_block_acceptance_data_verbosity.is_none()
+            && lane_key.is_none()
+        {
+            // specified verbosity doesn't need acceptance data and no lane bundle was requested
             return Ok(Vec::new());
         }
 
@@ -663,26 +667,38 @@ impl ConsensusConverter {
                     Default::default()
                 };
 
-            if let Some(mergeset_block_acceptance_data_verbosity) = verbosity.mergeset_block_acceptance_data_verbosity.as_ref() {
-                let mergeset_transactions_with_verbosity = self
-                    .get_mergeset_accepted_transactions_with_verbosity(
+            let accepted_transactions =
+                if let Some(mergeset_block_acceptance_data_verbosity) = verbosity.mergeset_block_acceptance_data_verbosity.as_ref() {
+                    self.get_mergeset_accepted_transactions_with_verbosity(
                         consensus,
                         *accepting_chain_hash,
                         chain_block_mergeset_acceptance_data,
                         mergeset_block_acceptance_data_verbosity,
                     )
-                    .await?;
+                    .await?
+                } else {
+                    Default::default()
+                };
 
-                rpc_acceptance_data.push(RpcChainBlockAcceptedTransactions {
-                    chain_block_header: accepting_chain_header_with_verbosity,
-                    accepted_transactions: mergeset_transactions_with_verbosity,
-                });
-            } else {
-                rpc_acceptance_data.push(RpcChainBlockAcceptedTransactions {
-                    chain_block_header: accepting_chain_header_with_verbosity,
-                    accepted_transactions: Default::default(),
-                });
+            // Populate kip21 lane bundle when requested. An error from consensus (e.g. block out
+            // of the SMT retention window, or covenants not active at this block's daa_score)
+            // leaves lane_data = None and the call succeeds — gives clients a way to detect
+            // per-block availability without blanket failures.
+            let lane_data = match lane_key {
+                Some(lk) => {
+                    consensus.async_get_block_lane_data(*accepting_chain_hash, lk).await.ok().map(|data| kaspa_rpc_core::RpcLaneData {
+                        miner_payload_leaves: data.miner_payload_leaves,
+                        lane_proof: data.lane_proof.to_bytes(),
+                    })
+                }
+                None => None,
             };
+
+            rpc_acceptance_data.push(RpcChainBlockAcceptedTransactions {
+                chain_block_header: accepting_chain_header_with_verbosity,
+                accepted_transactions,
+                lane_data,
+            });
         }
         Ok(rpc_acceptance_data)
     }

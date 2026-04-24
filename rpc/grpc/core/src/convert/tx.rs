@@ -127,10 +127,18 @@ from!(item: &kaspa_rpc_core::RpcOptionalUtxoEntryVerboseData, protowire::RpcUtxo
     }
 });
 
+from!(item: &kaspa_rpc_core::RpcLaneData, protowire::RpcLaneData, {
+    Self {
+        miner_payload_leaves: item.miner_payload_leaves.iter().map(|h| h.to_string()).collect(),
+        lane_proof: item.lane_proof.clone(),
+    }
+});
+
 from!(item: &kaspa_rpc_core::RpcChainBlockAcceptedTransactions, protowire::RpcChainBlockAcceptedTransactions, {
     Self {
         chain_block_header: Some(protowire::RpcOptionalHeader::from(&item.chain_block_header)),
         accepted_transactions: item.accepted_transactions.iter().map(protowire::RpcOptionalTransaction::from).collect(),
+        lane_data: item.lane_data.as_ref().map(protowire::RpcLaneData::from),
     }
 });
 
@@ -421,6 +429,13 @@ try_from!(item: &protowire::RpcAcceptedTransactionIds, kaspa_rpc_core::RpcAccept
     }
 });
 
+try_from!(item: &protowire::RpcLaneData, kaspa_rpc_core::RpcLaneData, {
+    Self {
+        miner_payload_leaves: item.miner_payload_leaves.iter().map(|s| RpcHash::from_str(s)).collect::<Result<Vec<_>, _>>()?,
+        lane_proof: item.lane_proof.clone(),
+    }
+});
+
 try_from!(item: &protowire::RpcChainBlockAcceptedTransactions, kaspa_rpc_core::RpcChainBlockAcceptedTransactions, {
     Self {
         chain_block_header: item
@@ -430,6 +445,7 @@ try_from!(item: &protowire::RpcChainBlockAcceptedTransactions, kaspa_rpc_core::R
             .transpose()?
             .ok_or_else(|| RpcError::MissingRpcFieldError("RpcChainBlockAcceptedTransactions".to_string(), "chain_block_header".to_string()))?,
         accepted_transactions: item.accepted_transactions.iter().map(kaspa_rpc_core::RpcOptionalTransaction::try_from).collect::<Result<_, _>>()?,
+        lane_data: item.lane_data.as_ref().map(kaspa_rpc_core::RpcLaneData::try_from).transpose()?,
     }
 });
 

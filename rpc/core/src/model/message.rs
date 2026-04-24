@@ -2739,20 +2739,30 @@ pub struct GetVirtualChainFromBlockV2Request {
     pub start_hash: RpcHash,
     pub data_verbosity_level: Option<RpcDataVerbosityLevel>,
     pub min_confirmation_count: Option<u64>,
+    /// When set, each chain block's response entry carries a per-lane settlement bundle
+    /// (`RpcChainBlockAcceptedTransactions.lane_data`) containing the kip21 SMT proof and
+    /// miner-payload leaves for this lane_key. `None` disables the bundle (legacy behavior).
+    pub lane_key: Option<RpcHash>,
 }
 
 impl GetVirtualChainFromBlockV2Request {
-    pub fn new(start_hash: RpcHash, data_verbosity_level: Option<RpcDataVerbosityLevel>, min_confirmation_count: Option<u64>) -> Self {
-        Self { start_hash, data_verbosity_level, min_confirmation_count }
+    pub fn new(
+        start_hash: RpcHash,
+        data_verbosity_level: Option<RpcDataVerbosityLevel>,
+        min_confirmation_count: Option<u64>,
+        lane_key: Option<RpcHash>,
+    ) -> Self {
+        Self { start_hash, data_verbosity_level, min_confirmation_count, lane_key }
     }
 }
 
 impl Serializer for GetVirtualChainFromBlockV2Request {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        store!(u16, &1, writer)?;
+        store!(u16, &2, writer)?;
         store!(RpcHash, &self.start_hash, writer)?;
         serialize!(Option<RpcDataVerbosityLevel>, &self.data_verbosity_level, writer)?;
         store!(Option<u64>, &self.min_confirmation_count, writer)?;
+        store!(Option<RpcHash>, &self.lane_key, writer)?;
 
         Ok(())
     }
@@ -2760,12 +2770,13 @@ impl Serializer for GetVirtualChainFromBlockV2Request {
 
 impl Deserializer for GetVirtualChainFromBlockV2Request {
     fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let _version = load!(u16, reader)?;
+        let version = load!(u16, reader)?;
         let start_hash = load!(RpcHash, reader)?;
         let data_verbosity_level = deserialize!(Option<RpcDataVerbosityLevel>, reader)?;
         let min_confirmation_count = load!(Option<u64>, reader)?;
+        let lane_key = if version >= 2 { load!(Option<RpcHash>, reader)? } else { None };
 
-        Ok(Self { start_hash, data_verbosity_level, min_confirmation_count })
+        Ok(Self { start_hash, data_verbosity_level, min_confirmation_count, lane_key })
     }
 }
 

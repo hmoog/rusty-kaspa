@@ -699,6 +699,7 @@ async fn sanity_test() {
                                 start_hash: SIMNET_GENESIS.hash,
                                 data_verbosity_level: None,
                                 min_confirmation_count: None,
+                                lane_key: None,
                             },
                         )
                         .await
