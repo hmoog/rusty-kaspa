@@ -408,6 +408,14 @@ impl ConsensusSessionOwned {
         self.clone().spawn_blocking(move |c| c.get_block_status(hash)).await
     }
 
+    pub async fn async_get_block_lane_data(
+        &self,
+        block_hash: Hash,
+        lane_key: Hash,
+    ) -> ConsensusResult<kaspa_consensus_core::api::BlockLaneData> {
+        self.clone().spawn_blocking(move |c| c.get_block_lane_data(block_hash, lane_key)).await
+    }
+
     pub async fn async_get_block_acceptance_data(&self, hash: Hash) -> ConsensusResult<Arc<AcceptanceData>> {
         self.clone().spawn_blocking(move |c| c.get_block_acceptance_data(hash)).await
     }

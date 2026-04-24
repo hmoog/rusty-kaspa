@@ -473,19 +473,60 @@ pub struct RpcAcceptedTransactionIds {
     pub accepted_transaction_ids: Vec<RpcTransactionId>,
 }
 
+/// Per-block kip21 settlement ingredients for a specific lane.
+///
+/// Populated by `get_virtual_chain_from_block_v2` when the request carries a `lane_key`.
+/// Lets a downstream verifier (e.g. a ZK rollup's batch prover) reconstruct this chain block's
+/// `seq_commit` for that lane without needing full mergeset transactions or direct SMT DB
+/// access.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RpcLaneData {
+    /// `miner_payload_leaf(merged_block_hash, blue_work, coinbase_payload)` for every block in
+    /// this chain block's mergeset, in the order kaspa's `collect_mergeset_seq_data` iterates.
+    pub miner_payload_leaves: Vec<RpcHash>,
+    /// Serialized `kaspa_smt::proof::OwnedSmtProof` for the requested `lane_key` against this
+    /// chain block's post-update `lanes_root`.
+    pub lane_proof: Vec<u8>,
+}
+
+impl Serializer for RpcLaneData {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        store!(u16, &1, writer)?;
+        store!(Vec<RpcHash>, &self.miner_payload_leaves, writer)?;
+        store!(Vec<u8>, &self.lane_proof, writer)?;
+
+        Ok(())
+    }
+}
+
+impl Deserializer for RpcLaneData {
+    fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let _version = load!(u16, reader)?;
+        let miner_payload_leaves = load!(Vec<RpcHash>, reader)?;
+        let lane_proof = load!(Vec<u8>, reader)?;
+
+        Ok(Self { miner_payload_leaves, lane_proof })
+    }
+}
+
 /// Represents accepted transaction ids
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RpcChainBlockAcceptedTransactions {
     pub chain_block_header: RpcOptionalHeader,
     pub accepted_transactions: Vec<RpcOptionalTransaction>,
+    /// Present only when `GetVirtualChainFromBlockV2Request.lane_key` is set and covenants are
+    /// active at the chain block's daa_score.
+    pub lane_data: Option<RpcLaneData>,
 }
 
 impl Serializer for RpcChainBlockAcceptedTransactions {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        store!(u16, &1, writer)?;
+        store!(u16, &2, writer)?;
         serialize!(RpcOptionalHeader, &self.chain_block_header, writer)?;
         serialize!(Vec<RpcOptionalTransaction>, &self.accepted_transactions, writer)?;
+        serialize!(Option<RpcLaneData>, &self.lane_data, writer)?;
 
         Ok(())
     }
@@ -493,10 +534,11 @@ impl Serializer for RpcChainBlockAcceptedTransactions {
 
 impl Deserializer for RpcChainBlockAcceptedTransactions {
     fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let _struct_version = load!(u16, reader)?;
+        let struct_version = load!(u16, reader)?;
         let chain_block_header = deserialize!(RpcOptionalHeader, reader)?;
         let accepted_transactions = deserialize!(Vec<RpcOptionalTransaction>, reader)?;
+        let lane_data = if struct_version >= 2 { deserialize!(Option<RpcLaneData>, reader)? } else { None };
 
-        Ok(Self { chain_block_header, accepted_transactions })
+        Ok(Self { chain_block_header, accepted_transactions, lane_data })
     }
 }

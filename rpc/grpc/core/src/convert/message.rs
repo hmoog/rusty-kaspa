@@ -790,7 +790,9 @@ try_from!(item: &protowire::GetVirtualChainFromBlockV2RequestMessage, kaspa_rpc_
     Self {
         start_hash: RpcHash::from_str(&item.start_hash)?,
         data_verbosity_level: item.data_verbosity_level.map(RpcDataVerbosityLevel::try_from).transpose()?,
-        min_confirmation_count: item.min_confirmation_count
+        min_confirmation_count: item.min_confirmation_count,
+        // TODO: expose lane_key through grpc proto. Not in scope-sizing diff.
+        lane_key: None,
     }
 });
 try_from!(item: &protowire::GetVirtualChainFromBlockV2ResponseMessage, RpcResult<kaspa_rpc_core::GetVirtualChainFromBlockV2Response>, {

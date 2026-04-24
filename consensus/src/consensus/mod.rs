@@ -1188,6 +1188,61 @@ impl ConsensusApi for Consensus {
         self.virtual_processor.get_pruning_point_smt_metadata(expected_pruning_point)
     }
 
+    fn get_block_lane_data(
+        &self,
+        block_hash: Hash,
+        lane_key: Hash,
+    ) -> ConsensusResult<kaspa_consensus_core::api::BlockLaneData> {
+        use kaspa_consensus_core::api::BlockLaneData;
+        use kaspa_seq_commit::hashing::miner_payload_leaf;
+        use kaspa_seq_commit::types::MinerPayloadLeafInput;
+        use kaspa_smt_store::processor::SmtReadBounds;
+
+        // The block and its acceptance data must exist.
+        let header = self.headers_store.get_header(block_hash).optional().unwrap().ok_or(ConsensusError::MissingData(block_hash))?;
+        let acceptance = self
+            .acceptance_data_store
+            .get(block_hash)
+            .optional()
+            .unwrap()
+            .ok_or(ConsensusError::MissingData(block_hash))?;
+
+        // Walk the mergeset in kaspa's canonical iteration order, computing one miner-payload
+        // leaf per merged block from its coinbase payload + blue_work.
+        let mut miner_payload_leaves = Vec::with_capacity(acceptance.len());
+        for block_acceptance in acceptance.iter() {
+            let merged_block = block_acceptance.block_hash;
+            let merged_header = self.headers_store.get_header(merged_block).optional().unwrap().ok_or(ConsensusError::MissingData(merged_block))?;
+            let block_txs = self
+                .block_transactions_store
+                .get(merged_block)
+                .optional()
+                .unwrap()
+                .ok_or(ConsensusError::BlockNotFound(merged_block))?;
+            let blue_work_be_bytes = merged_header.blue_work.to_be_bytes();
+            let coinbase_payload = &block_txs[0].payload;
+            let leaf = miner_payload_leaf(MinerPayloadLeafInput {
+                block_hash: &merged_block,
+                blue_work_be_bytes: &blue_work_be_bytes,
+                payload: coinbase_payload,
+            });
+            miner_payload_leaves.push(leaf);
+        }
+
+        // Lane proof against this chain block's post-update lanes_root. Window matches the
+        // internal convention: [block.blue_score - finality_depth, block.blue_score].
+        let bounds = SmtReadBounds::for_pov(header.blue_score, self.config.params.finality_depth());
+        let vp = self.virtual_processor.clone();
+        let is_canonical = move |bh| vp.is_smt_canonical(bh, block_hash);
+        let lane_proof = self
+            .storage
+            .smt_stores
+            .prove_lane(&lane_key, bounds, is_canonical)
+            .map_err(|e| ConsensusError::GeneralOwned(format!("prove_lane: {e}")))?;
+
+        Ok(BlockLaneData { miner_payload_leaves, lane_proof })
+    }
+
     fn open_pruning_point_smt_lane_stream(
         &self,
         expected_pruning_point: Hash,

@@ -1284,7 +1284,7 @@ NOTE: This error usually indicates an RPC conversion error between the node and 
 
         let chain_blocks_accepted_transactions = self
             .consensus_converter
-            .get_chain_blocks_accepted_transactions(&session, &verbosity, &chain_path, Some(batch_size))
+            .get_chain_blocks_accepted_transactions(&session, &verbosity, &chain_path, Some(batch_size), request.lane_key)
             .await?;
 
         chain_path.added.truncate(chain_blocks_accepted_transactions.len());

@@ -430,6 +430,8 @@ try_from!(item: &protowire::RpcChainBlockAcceptedTransactions, kaspa_rpc_core::R
             .transpose()?
             .ok_or_else(|| RpcError::MissingRpcFieldError("RpcChainBlockAcceptedTransactions".to_string(), "chain_block_header".to_string()))?,
         accepted_transactions: item.accepted_transactions.iter().map(kaspa_rpc_core::RpcOptionalTransaction::try_from).collect::<Result<_, _>>()?,
+        // TODO: expose lane_data through grpc proto. Not in scope-sizing diff.
+        lane_data: None,
     }
 });
 

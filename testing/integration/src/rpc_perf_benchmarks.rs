@@ -119,7 +119,7 @@ async fn bench_rpc_high_load() {
                 let hash = thread_virtual_chain.get(index).unwrap();
 
                 let start = Instant::now();
-                client.get_virtual_chain_from_block_v2(*hash, Some(kaspa_rpc_core::RpcDataVerbosityLevel::High), None).await.unwrap();
+                client.get_virtual_chain_from_block_v2(*hash, Some(kaspa_rpc_core::RpcDataVerbosityLevel::High), None, None).await.unwrap();
 
                 latencies.push(start.elapsed());
             }
