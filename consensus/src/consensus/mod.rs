@@ -1188,11 +1188,7 @@ impl ConsensusApi for Consensus {
         self.virtual_processor.get_pruning_point_smt_metadata(expected_pruning_point)
     }
 
-    fn get_block_lane_data(
-        &self,
-        block_hash: Hash,
-        lane_key: Hash,
-    ) -> ConsensusResult<kaspa_consensus_core::api::BlockLaneData> {
+    fn get_block_lane_data(&self, block_hash: Hash, lane_key: Hash) -> ConsensusResult<kaspa_consensus_core::api::BlockLaneData> {
         use kaspa_consensus_core::api::BlockLaneData;
         use kaspa_seq_commit::hashing::miner_payload_leaf;
         use kaspa_seq_commit::types::MinerPayloadLeafInput;
@@ -1200,19 +1196,16 @@ impl ConsensusApi for Consensus {
 
         // The block and its acceptance data must exist.
         let header = self.headers_store.get_header(block_hash).optional().unwrap().ok_or(ConsensusError::MissingData(block_hash))?;
-        let acceptance = self
-            .acceptance_data_store
-            .get(block_hash)
-            .optional()
-            .unwrap()
-            .ok_or(ConsensusError::MissingData(block_hash))?;
+        let acceptance =
+            self.acceptance_data_store.get(block_hash).optional().unwrap().ok_or(ConsensusError::MissingData(block_hash))?;
 
         // Walk the mergeset in kaspa's canonical iteration order, computing one miner-payload
         // leaf per merged block from its coinbase payload + blue_work.
         let mut miner_payload_leaves = Vec::with_capacity(acceptance.len());
         for block_acceptance in acceptance.iter() {
             let merged_block = block_acceptance.block_hash;
-            let merged_header = self.headers_store.get_header(merged_block).optional().unwrap().ok_or(ConsensusError::MissingData(merged_block))?;
+            let merged_header =
+                self.headers_store.get_header(merged_block).optional().unwrap().ok_or(ConsensusError::MissingData(merged_block))?;
             let block_txs = self
                 .block_transactions_store
                 .get(merged_block)

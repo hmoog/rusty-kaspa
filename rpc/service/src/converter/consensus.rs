@@ -685,14 +685,12 @@ impl ConsensusConverter {
             // leaves lane_data = None and the call succeeds — gives clients a way to detect
             // per-block availability without blanket failures.
             let lane_data = match lane_key {
-                Some(lk) => consensus
-                    .async_get_block_lane_data(*accepting_chain_hash, lk)
-                    .await
-                    .ok()
-                    .map(|data| kaspa_rpc_core::RpcLaneData {
+                Some(lk) => {
+                    consensus.async_get_block_lane_data(*accepting_chain_hash, lk).await.ok().map(|data| kaspa_rpc_core::RpcLaneData {
                         miner_payload_leaves: data.miner_payload_leaves,
                         lane_proof: data.lane_proof.to_bytes(),
-                    }),
+                    })
+                }
                 None => None,
             };
 
