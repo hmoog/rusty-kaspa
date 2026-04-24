@@ -2681,6 +2681,68 @@ async fn pruning_test() {
     consensus.shutdown(wait_handles);
 }
 
+/// Verifies that `ConsensusApi::get_block_lane_data` returns a well-formed bundle:
+///
+/// - `miner_payload_leaves.len()` equals the block's mergeset size (so
+///   `miner_payload_root` over the leaves matches kaspa's internal payload_root).
+/// - The returned `lane_proof` verifies against the lanes_root stored for that
+///   block, both for a lane with no activity (absence proof) and for a lane
+///   with activity introduced via the existing assertion helpers.
+///
+/// The lane with no activity case is exercised on the initial post-activation
+/// chain — no user txs, lane SMT is empty at our lane_key.
+#[tokio::test]
+async fn get_block_lane_data_returns_verifiable_bundle() {
+    use kaspa_consensus_core::api::ConsensusApi;
+    use kaspa_hashes::SeqCommitActiveNode;
+
+    init_allocator_with_default_settings();
+    let config = ConfigBuilder::new(DEVNET_PARAMS)
+        .skip_proof_of_work()
+        .edit_consensus_params(|p| {
+            p.coinbase_maturity = 0;
+            p.covenants_activation = ForkActivation::always();
+        })
+        .build();
+    let consensus = TestConsensus::new(&config);
+    let wait_handles = consensus.init();
+
+    // Grow a short post-activation chain — coinbase-only blocks are enough to exercise
+    // the mergeset walk for miner_payload_leaves.
+    let mut tip = config.genesis.hash;
+    let mut tips = Vec::new();
+    for i in 1..=3u64 {
+        let h: Hash = i.into();
+        consensus.add_utxo_valid_block_with_parents(h, vec![tip], vec![]).await.unwrap();
+        tips.push(h);
+        tip = h;
+    }
+    let accepting_block = *tips.last().unwrap();
+
+    // An arbitrary lane_key — SMT has no entry at this key (no user activity).
+    let lane_key = kaspa_seq_commit::hashing::lane_key(&[0x42; 20]);
+
+    let data = consensus.consensus_clone().get_block_lane_data(accepting_block, lane_key).unwrap();
+
+    // Mergeset size from existing helpers — miner_payload_leaves must line up.
+    let acceptance = consensus.get_block_acceptance_data(accepting_block).unwrap();
+    assert_eq!(
+        data.miner_payload_leaves.len(),
+        acceptance.len(),
+        "one miner_payload_leaf per merged block"
+    );
+
+    // Proof must verify against the block's lanes_root, yielding None (absence).
+    let test_proof = consensus.seq_commit_lane_proof(accepting_block, lane_key);
+    assert!(data.lane_proof.verify::<SeqCommitActiveNode>(&lane_key, None, test_proof.lanes_root).unwrap());
+
+    // Bitmap + siblings match the internal proof exactly — our wrapper is a pass-through.
+    assert_eq!(data.lane_proof.siblings, test_proof.smt_proof.siblings);
+    assert_eq!(data.lane_proof.bitmap, test_proof.smt_proof.bitmap);
+
+    consensus.shutdown(wait_handles);
+}
+
 // Checks that consensus can handle blocks from multiple levels
 #[tokio::test]
 async fn indirect_parents_test() {
